@@ -1,8 +1,7 @@
-# React + Vite
+whatdidthegovernmentdotoday.org is an ambitious open-source project created to provide clear, unbiased, and easily understandable information about the government's daily actions.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The main site will consist of a chronological log of government actions, allowing users to view entries from today, this week, or any past date. Users will be able to navigate through daily, weekly, or monthly views to track patterns over time. The site will also offer filtering options and access via an open API for developers and researchers.
 
-Currently, two official plugins are available:
+The site will be supported by an AI system that helps users interact with the information, providing more context or detailed explanations when needed. The focus should be on delivering a straightforward, accessible log of government activity without complexity.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+"Today, the government acted. Here's exactly what they did."
