@@ -1,0 +1,49 @@
+/* Container for the entire page */
+.template-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  
+  /* Header styling using CSS grid for layout */
+  .header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    background-color: #2489ed;
+    color: #90caf9;
+    align-items: center;
+    padding: 1px 1px;
+    border-radius: 1px;
+  }
+
+  .header h1 {
+    font-size: 3rem;
+  }
+  
+  /* Left side: menu button */
+  .header-left {
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Simple styling for the menu button */
+  .menu-button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+  
+  /* Content styling */
+  .content {
+    flex: 1;
+    padding: 20px;
+  }
+  
+  /* Footer styling 
+  .footer {
+    
+  }
+  */
+
+  

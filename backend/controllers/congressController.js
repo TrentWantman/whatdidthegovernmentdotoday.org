@@ -1,92 +1,310 @@
 const axios = require('axios');
-const Bill = require('../models/Bill'); 
-/**
- * 1) getCongressActions - for listing a page of bills
- *    e.g. GET /api/congress/paginated?offset=0&limit=5
- */
-exports.getCongressActions = async (req, res) => {
+const { ApiError } = require('../middleware/errorHandler');
+const { cacheMiddleware } = require('../middleware/cache');
+
+const CONGRESS_API_BASE = 'https://api.congress.gov/v3';
+
+const congressApiRequest = async (endpoint, params = {}) => {
   const apiKey = process.env.CONGRESS_API_KEY;
-  const { offset = 0, limit = 5 } = req.query;
+
+  if (!apiKey) {
+    throw new ApiError(500, 'Congress API key not configured');
+  }
 
   try {
-    // Call the official Congress API
-    const response = await axios.get('https://api.congress.gov/v3/bill', {
+    const response = await axios.get(`${CONGRESS_API_BASE}${endpoint}`, {
       headers: { 'X-API-Key': apiKey },
       params: {
         format: 'json',
-        offset,
-        limit,
+        ...params
       },
+      timeout: 10000
     });
 
-    const { bills, pagination } = response.data || {};
-
-    // OPTIONAL: Cache in MongoDB. If ignoring DB, remove this block.
-    /*
-    if (bills) {
-      const bulkOps = bills.map((b) => ({
-        updateOne: {
-          filter: { number: b.number, congress: b.congress },
-          update: {
-            $set: {
-              // store fields...
-            },
-          },
-          upsert: true,
-        },
-      }));
-      if (bulkOps.length > 0) {
-        await Bill.bulkWrite(bulkOps);
-      }
-    }
-    */
-
-    res.json({
-      bills: bills || [],
-      pagination: {
-        count: pagination?.count || 0,
-        next: pagination?.next || null,
-      },
-    });
+    return response.data;
   } catch (error) {
-    console.error('❌ API Error (paginated):', error.message);
-    res.status(500).json({ error: 'Failed to fetch congressional actions' });
+    if (error.response) {
+      throw new ApiError(
+        error.response.status,
+        `Congress API error: ${error.response.data?.message || error.message}`
+      );
+    } else if (error.request) {
+      throw new ApiError(503, 'Congress API is unavailable');
+    } else {
+      throw new ApiError(500, `Request failed: ${error.message}`);
+    }
   }
 };
 
-/**
- * 2) getBillDetails - fetch details for a single slug (e.g. "118-hr-146")
- *    Splits into [118, 'hr', '146'] => calls Congress.gov => returns JSON
- */
-exports.getBillDetails = async (req, res) => {
-  const apiKey = process.env.CONGRESS_API_KEY;
-  const { billSlug } = req.params; // "118-hr-146"
-  const [congress, rawType, billNumber] = billSlug.split('-');
-  const billType = (rawType || '').toLowerCase(); // ensure lowercase
-
+exports.getCongressData = async (req, res, next) => {
   try {
-    // OPTIONAL: DB check if ignoring DB, remove
-    /*
-    const dbBill = await Bill.findOne({ congress, number: billNumber });
-    if (dbBill) {
-      console.log('Serving Bill from DB cache');
-      return res.json(dbBill);
-    }
-    */
+    const { limit = 10, offset = 0, sort = 'updateDate+desc' } = req.query;
 
-    // Query Congress.gov
-    const response = await axios.get(
-      `https://api.congress.gov/v3/bill/${congress}/${billType}/${billNumber}`,
-      {
-        headers: { 'X-API-Key': apiKey },
-        params: { format: 'json' },
+    const data = await congressApiRequest('/bill', {
+      offset,
+      limit,
+      sort
+    });
+
+    const { bills, pagination } = data || {};
+
+    const enrichedBills = bills?.map(bill => {
+      const congress = bill.congress || bill.originChamber || 'unknown';
+      const type = bill.type?.toLowerCase() || 'unknown';
+      const number = bill.number || Math.floor(Math.random() * 10000);
+
+      const isValidSlug = congress !== 'unknown' && type !== 'unknown' && bill.number;
+
+      return {
+        ...bill,
+        slug: isValidSlug ?
+          `${congress}-${type}-${number}` :
+          `invalid-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        shortTitle: bill.title?.substring(0, 100) + (bill.title?.length > 100 ? '...' : ''),
+        lastAction: bill.latestAction
+      };
+    }) || [];
+
+    res.json({
+      success: true,
+      data: {
+        bills: enrichedBills,
+        pagination: {
+          count: pagination?.count || 0,
+          hasNext: !!pagination?.next,
+          next: pagination?.next || null,
+          offset: parseInt(offset),
+          limit: parseInt(limit)
+        }
       }
-    );
-
-    // Return the official data
-    res.json(response.data);
+    });
   } catch (error) {
-    console.error('❌ API Error (bill details):', error.message);
-    res.status(500).json({ error: 'Failed to fetch bill details' });
+    next(error);
+  }
+};
+
+exports.getCongressActions = async (req, res, next) => {
+  try {
+    const { offset = 0, limit = 5, sort = 'updateDate+desc' } = req.query;
+
+    const data = await congressApiRequest('/bill', {
+      offset,
+      limit,
+      sort
+    });
+
+    const { bills, pagination } = data || {};
+
+    const actionsWithDetails = bills?.map(bill => {
+      const congress = bill.congress || bill.originChamber || 'unknown';
+      const type = bill.type?.toLowerCase() || 'unknown';
+      const number = bill.number || Math.floor(Math.random() * 10000);
+
+      const isValidSlug = congress !== 'unknown' && type !== 'unknown' && bill.number;
+
+      return {
+        ...bill,
+        slug: isValidSlug ?
+          `${congress}-${type}-${number}` :
+          `invalid-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        actions: bill.latestAction ? [bill.latestAction] : [],
+        status: bill.latestAction?.actionDate ? 'active' : 'pending'
+      };
+    }) || [];
+
+    res.json({
+      success: true,
+      data: {
+        bills: actionsWithDetails,
+        pagination: {
+          count: pagination?.count || 0,
+          hasNext: !!pagination?.next,
+          next: pagination?.next || null,
+          offset: parseInt(offset),
+          limit: parseInt(limit),
+          totalPages: Math.ceil((pagination?.count || 0) / limit)
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getBillDetails = async (req, res, next) => {
+  try {
+    const { billSlug } = req.params;
+    const [congress, rawType, billNumber] = billSlug.split('-');
+    const billType = (rawType || '').toLowerCase();
+
+    const [billData, actionsData, summariesData] = await Promise.all([
+      congressApiRequest(`/bill/${congress}/${billType}/${billNumber}`),
+      congressApiRequest(`/bill/${congress}/${billType}/${billNumber}/actions`).catch(() => null),
+      congressApiRequest(`/bill/${congress}/${billType}/${billNumber}/summaries`).catch(() => null)
+    ]);
+
+    const enrichedBill = {
+      ...billData.bill,
+      actions: actionsData?.actions || [],
+      summaries: summariesData?.summaries || [],
+      slug: billSlug,
+      sponsors: billData.bill?.sponsors || [],
+      committees: billData.bill?.committees || [],
+      relatedBills: billData.bill?.relatedBills || []
+    };
+
+    res.json({
+      success: true,
+      data: enrichedBill
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.searchBills = async (req, res, next) => {
+  try {
+    const {
+      query,
+      congress,
+      chamber,
+      billType,
+      sponsor,
+      sort = 'updateDate+desc',
+      offset = 0,
+      limit = 20
+    } = req.query;
+
+    // Build the API endpoint based on filters
+    let endpoint = '/bill';
+    const searchParams = {
+      offset,
+      limit,
+      sort
+    };
+
+    // If congress and billType are provided, use specific endpoint
+    if (congress && billType) {
+      endpoint = `/bill/${congress}/${billType.toLowerCase()}`;
+    } else if (congress) {
+      // Search within specific congress
+      searchParams.congress = congress;
+    }
+
+    // Add text query if provided
+    if (query) {
+      searchParams.query = query;
+    }
+
+    console.log(`Searching Congress API: ${endpoint}`, searchParams);
+
+    const data = await congressApiRequest(endpoint, searchParams);
+    const { bills, pagination } = data || {};
+
+    let filteredBills = bills || [];
+
+    // Apply client-side filtering for parameters not supported by API
+    if (chamber) {
+      filteredBills = filteredBills.filter(bill => {
+        const billType = bill.type?.toLowerCase();
+        const isHouseBill = billType?.startsWith('h') || bill.originChamber === 'House';
+        const isSenateBill = billType?.startsWith('s') || bill.originChamber === 'Senate';
+
+        return chamber === 'house' ? isHouseBill : isSenateBill;
+      });
+    }
+
+    if (sponsor) {
+      filteredBills = filteredBills.filter(bill => {
+        const sponsors = bill.sponsors || [];
+        return sponsors.some(s =>
+          s.firstName?.toLowerCase().includes(sponsor.toLowerCase()) ||
+          s.lastName?.toLowerCase().includes(sponsor.toLowerCase()) ||
+          s.fullName?.toLowerCase().includes(sponsor.toLowerCase())
+        );
+      });
+    }
+
+    const enrichedBills = filteredBills.map(bill => {
+      const congress = bill.congress || bill.originChamber || 'unknown';
+      const type = bill.type?.toLowerCase() || 'unknown';
+      const number = bill.number || Math.floor(Math.random() * 10000);
+
+      const isValidSlug = congress !== 'unknown' && type !== 'unknown' && bill.number;
+
+      return {
+        ...bill,
+        slug: isValidSlug ?
+          `${congress}-${type}-${number}` :
+          `invalid-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        shortTitle: bill.title?.substring(0, 100) + (bill.title?.length > 100 ? '...' : ''),
+        lastAction: bill.latestAction
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        bills: enrichedBills,
+        pagination: {
+          count: filteredBills.length,
+          hasNext: false, // Client-side filtering doesn't support pagination
+          offset: parseInt(offset),
+          limit: parseInt(limit),
+          totalPages: 1
+        },
+        searchCriteria: { query, congress, chamber, billType, sponsor },
+        apiEndpoint: endpoint
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getBillSummary = async (req, res, next) => {
+  try {
+    const { billSlug } = req.params;
+    const [congress, rawType, billNumber] = billSlug.split('-');
+    const billType = (rawType || '').toLowerCase();
+
+    const data = await congressApiRequest(`/bill/${congress}/${billType}/${billNumber}/summaries`);
+
+    res.json({
+      success: true,
+      data: {
+        summaries: data.summaries || [],
+        billSlug
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getMembers = async (req, res, next) => {
+  try {
+    const { chamber = 'house', limit = 20, offset = 0 } = req.query;
+
+    const data = await congressApiRequest(`/member/${chamber}`, {
+      offset,
+      limit,
+      currentMember: true
+    });
+
+    res.json({
+      success: true,
+      data: {
+        members: data.members || [],
+        pagination: {
+          count: data.pagination?.count || 0,
+          hasNext: !!data.pagination?.next,
+          offset: parseInt(offset),
+          limit: parseInt(limit)
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
   }
 };
