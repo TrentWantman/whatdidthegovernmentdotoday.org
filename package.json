@@ -25,7 +25,7 @@
     "react",
     "express"
   ],
-  "author": "Your Name",
+  "author": "Trent Wantman",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"

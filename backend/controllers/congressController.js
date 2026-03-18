@@ -175,7 +175,6 @@ exports.searchBills = async (req, res, next) => {
       limit = 20
     } = req.query;
 
-    // Build the API endpoint based on filters
     let endpoint = '/bill';
     const searchParams = {
       offset,
@@ -183,27 +182,22 @@ exports.searchBills = async (req, res, next) => {
       sort
     };
 
-    // If congress and billType are provided, use specific endpoint
     if (congress && billType) {
       endpoint = `/bill/${congress}/${billType.toLowerCase()}`;
     } else if (congress) {
-      // Search within specific congress
       searchParams.congress = congress;
     }
 
-    // Add text query if provided
     if (query) {
       searchParams.query = query;
     }
-
-    console.log(`Searching Congress API: ${endpoint}`, searchParams);
 
     const data = await congressApiRequest(endpoint, searchParams);
     const { bills, pagination } = data || {};
 
     let filteredBills = bills || [];
 
-    // Apply client-side filtering for parameters not supported by API
+    // Apply client-side filtering for parameters not supported by the API
     if (chamber) {
       filteredBills = filteredBills.filter(bill => {
         const billType = bill.type?.toLowerCase();
@@ -242,19 +236,23 @@ exports.searchBills = async (req, res, next) => {
       };
     });
 
+    // Chamber and sponsor are filtered client-side so pagination is unreliable when they're active
+    const usingClientFilter = !!(chamber || sponsor);
+    const totalCount = usingClientFilter ? filteredBills.length : (pagination?.count || 0);
+    const parsedLimit = parseInt(limit);
+
     res.json({
       success: true,
       data: {
         bills: enrichedBills,
         pagination: {
-          count: filteredBills.length,
-          hasNext: false, // Client-side filtering doesn't support pagination
+          count: totalCount,
+          hasNext: usingClientFilter ? false : !!pagination?.next,
           offset: parseInt(offset),
-          limit: parseInt(limit),
-          totalPages: 1
+          limit: parsedLimit,
+          totalPages: usingClientFilter ? 1 : Math.ceil(totalCount / parsedLimit)
         },
-        searchCriteria: { query, congress, chamber, billType, sponsor },
-        apiEndpoint: endpoint
+        searchCriteria: { query, congress, chamber, billType, sponsor }
       }
     });
   } catch (error) {

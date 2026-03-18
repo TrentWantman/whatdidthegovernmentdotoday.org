@@ -7,17 +7,11 @@ const options = {
       title: 'Government Tracker API',
       version: '1.0.0',
       description: 'API for tracking congressional bills and government activities',
-      contact: {
-        name: 'API Support',
-        email: 'support@example.com'
-      },
     },
     servers: [
       {
-        url: process.env.NODE_ENV === 'production'
-          ? 'https://your-api-domain.com'
-          : 'http://localhost:5000',
-        description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
+        url: 'http://localhost:5000',
+        description: 'Development server'
       }
     ],
     components: {
