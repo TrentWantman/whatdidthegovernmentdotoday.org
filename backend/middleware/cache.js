@@ -8,7 +8,6 @@ const cacheMiddleware = (duration = 300) => {
     const cachedResponse = cache.get(key);
 
     if (cachedResponse) {
-      console.log(`Cache hit for ${key}`);
       return res.json(cachedResponse);
     }
 
@@ -17,7 +16,6 @@ const cacheMiddleware = (duration = 300) => {
       res.originalJson(body);
       if (res.statusCode === 200) {
         cache.set(key, body, duration);
-        console.log(`Cached ${key} for ${duration} seconds`);
       }
     };
 
@@ -27,7 +25,6 @@ const cacheMiddleware = (duration = 300) => {
 
 const clearCache = () => {
   cache.flushAll();
-  console.log('Cache cleared');
 };
 
 module.exports = {

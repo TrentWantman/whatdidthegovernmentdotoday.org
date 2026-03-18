@@ -4,7 +4,6 @@ import HomePage from "./pages/HomePage";
 import CongressActions from "./components/CongressActions";
 import BillDetailPage from "./pages/BillDetailPage";
 import SearchPage from "./pages/SearchPage";
-import TemplatePage from "./pages/TemplatePage";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 function App() {
@@ -16,7 +15,6 @@ function App() {
           <Route path="/congress" element={<CongressActions />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/bill/:billSlug" element={<BillDetailPage />} />
-          <Route path="/template" element={<TemplatePage />} />
           <Route path="*" element={
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
               <div className="text-center">
