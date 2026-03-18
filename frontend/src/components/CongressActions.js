@@ -68,8 +68,6 @@ const CongressActions = () => {
             >
               <option value="updateDate+desc">Most Recent</option>
               <option value="updateDate+asc">Oldest First</option>
-              <option value="number+desc">Bill Number (High to Low)</option>
-              <option value="number+asc">Bill Number (Low to High)</option>
             </select>
           </div>
         </div>

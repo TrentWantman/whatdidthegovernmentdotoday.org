@@ -11,13 +11,23 @@ const congressApiRequest = async (endpoint, params = {}) => {
     throw new ApiError(500, 'Congress API key not configured');
   }
 
+  // Build query string manually - Congress.gov expects sort values with a literal +
+  // (e.g. updateDate+desc), but Express decodes + to a space so we have to restore it
+  const parts = ['format=json'];
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      if (key === 'sort') {
+        parts.push(`sort=${String(value).replace(/\s+/g, '+')}`);
+      } else {
+        parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+      }
+    }
+  }
+  const url = `${CONGRESS_API_BASE}${endpoint}?${parts.join('&')}`;
+
   try {
-    const response = await axios.get(`${CONGRESS_API_BASE}${endpoint}`, {
+    const response = await axios.get(url, {
       headers: { 'X-API-Key': apiKey },
-      params: {
-        format: 'json',
-        ...params
-      },
       timeout: 10000
     });
 
