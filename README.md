@@ -2,8 +2,6 @@
 
 Browse and search congressional bills using the [Congress.gov API](https://api.congress.gov/). View bill details, legislative actions, sponsors, and committee information.
 
-[screenshot]
-
 ## Stack
 
 - React 18, React Router
